@@ -24,9 +24,9 @@ use tokio::{
     sync::{broadcast, mpsc, Mutex},
 };
 use tokio_tungstenite::{
-    accept_hdr_async,
+    accept_async, accept_hdr_async,
     tungstenite::{
-        handshake::server::{Request, Response},
+        handshake::server::{Callback, ErrorResponse, Request, Response},
         Message,
     },
     WebSocketStream,
@@ -159,23 +159,36 @@ async fn accept_authenticated(
     auth: AuthConfig,
 ) -> Result<(WebSocketStream<TcpStream>, Option<AuthRole>)> {
     if !auth.enabled() {
-        let ws = accept_hdr_async(stream, |_request: &Request, response: Response| {
-            Ok(response)
-        })
-        .await?;
+        let ws = accept_async(stream).await?;
         return Ok((ws, None));
     }
 
     let role_slot = Arc::new(StdMutex::new(None));
-    let role_for_callback = Arc::clone(&role_slot);
-    let ws = accept_hdr_async(stream, move |request: &Request, response: Response| {
-        let role = authenticate_request(request, &auth).map_err(unauthorized_response)?;
-        *role_for_callback.lock().expect("auth role mutex poisoned") = Some(role);
-        Ok(response)
-    })
-    .await?;
+    let callback = AuthCallback {
+        auth,
+        role_slot: Arc::clone(&role_slot),
+    };
+    let ws = accept_hdr_async(stream, callback).await?;
     let role = *role_slot.lock().expect("auth role mutex poisoned");
     Ok((ws, role))
+}
+
+struct AuthCallback {
+    auth: AuthConfig,
+    role_slot: Arc<StdMutex<Option<AuthRole>>>,
+}
+
+impl Callback for AuthCallback {
+    #[allow(clippy::result_large_err)]
+    fn on_request(
+        self,
+        request: &Request,
+        response: Response,
+    ) -> std::result::Result<Response, ErrorResponse> {
+        let role = authenticate_request(request, &self.auth).map_err(unauthorized_response)?;
+        *self.role_slot.lock().expect("auth role mutex poisoned") = Some(role);
+        Ok(response)
+    }
 }
 
 fn ensure_role(auth_role: Option<AuthRole>, expected: AuthRole) -> Result<()> {
