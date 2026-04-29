@@ -21,6 +21,7 @@ This initial version implements:
 - `none` sandbox backend
 - local process execution through `tokio::process::Command`
 - SQLite-backed coordinator event storage
+- installable `agent-runtime` launcher for environment-driven multi-node startup
 
 MCP tools, torchrun orchestration, real policy rules, and bubblewrap sandboxing
 are planned next steps.
@@ -97,6 +98,9 @@ worker and client tokens separate.
 For lab and training machines, install the runtime binaries and run the same
 environment-driven command on every node. `RANK=0` starts the coordinator plus a
 local worker; other ranks start worker-only processes.
+
+Startup is intentionally handled by installed binaries rather than repo-local
+scripts, so machines do not need a repository checkout after installation.
 
 Install from Git:
 

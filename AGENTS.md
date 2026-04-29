@@ -5,9 +5,10 @@
 This repository is a Linux-only, Rust-based distributed agent runtime prototype.
 
 - `crates/protocol` contains shared wire types and run/job/task models.
-- `crates/coordinator`, `crates/worker`, and `crates/cli` provide the current binaries.
+- `crates/coordinator`, `crates/worker`, `crates/cli`, and `crates/runtime` provide the current binaries.
 - `crates/policy`, `crates/sandbox-linux`, `crates/executor`, and `crates/jobstore` implement the launch path and persistence boundary.
 - `docs/v0.1.md` is the active architecture/design reference.
+- `docs/RUNBOOK.md` is the active two-machine deployment runbook.
 - `examples/allow-all.yaml` is the initial development policy profile.
 - `LICENSE` contains the project license.
 
@@ -23,6 +24,28 @@ Planned crates such as `mcp-server` and `telemetry` are described in `docs/v0.1.
 - `cargo run --bin agent-coordinator -- --listen 127.0.0.1:8765` starts a local coordinator.
 - `cargo run --bin agent-worker -- --coordinator ws://127.0.0.1:8765 --node-name node-a` starts a local worker.
 - `cargo run --bin agentctl -- nodes` lists connected workers.
+- `cargo run --bin agent-runtime -- start` starts the environment-driven launcher for local testing.
+- `cargo install --path crates/runtime --locked` verifies the installable launcher path.
+
+CI uses locked dependency resolution. When changing workspace membership or dependencies, update `Cargo.lock` and rerun locked commands before committing:
+
+- `cargo check --workspace --locked`
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`
+- `cargo test --workspace --locked`
+
+## Runtime & Deployment Guidelines
+
+The deployment path is installed binaries, not repository checkout scripts. Keep runtime startup logic inside installable Rust binaries, primarily `agent-runtime`, so users can deploy with `cargo install`.
+
+`agent-runtime` is the one-command node entrypoint:
+
+- `RANK=0` starts coordinator plus a local worker.
+- `RANK!=0` starts a worker only.
+- `MASTER_ADDR` and `MASTER_PORT` are accepted through `COORDINATOR_ADDR` and `PORT` fallbacks.
+- `MODE=foreground` is the default and should remain scheduler/tmux friendly.
+- `MODE=tmux` is optional lab convenience, not the primary deployment contract.
+
+Do not add repo-local startup scripts as the main workflow. If a launcher needs new behavior, prefer adding it to `crates/runtime` and documenting the corresponding environment variables in `README.md` and `docs/RUNBOOK.md`.
 
 ## Coding Style & Naming Conventions
 

@@ -3,6 +3,9 @@
 This runbook covers the current two-machine lab setup. It assumes the binaries
 are installed on each machine and available on `PATH`.
 
+The runtime is launched through installable binaries. The repository does not
+provide startup scripts as the deployment contract.
+
 ## Port layout
 
 Use separate runtime directories when running more than one coordinator on the
@@ -71,6 +74,9 @@ hosts. Do not copy the client token to worker-only machines.
 
 Default mode is foreground, which is the preferred shape for schedulers,
 training launch scripts, and tmux sessions that you manage yourself.
+
+This command can be the full body of a per-machine training launcher once the
+environment has set `RANK`, `MASTER_ADDR`, and `MASTER_PORT`.
 
 ```bash
 PORT="${MASTER_PORT:-8765}" \
