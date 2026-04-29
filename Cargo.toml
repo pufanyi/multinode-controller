@@ -10,6 +10,7 @@ members = [
     "crates/coordinator",
     "crates/worker",
     "crates/cli",
+    "crates/runtime",
 ]
 
 [workspace.package]

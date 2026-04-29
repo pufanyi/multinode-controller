@@ -92,54 +92,59 @@ For quick local demos, `--token-file` on the coordinator can be used as one
 shared token for both workers and clients. Production-like setups should keep
 worker and client tokens separate.
 
-## Tmux startup
+## Installed runtime launcher
 
-For lab machines, `scripts/agent-runtime-launch.sh` provides a single
-environment-driven launcher that can be distributed to every node. By default,
-`RANK=0` starts coordinator + worker, and other ranks start worker only.
+For lab and training machines, install the runtime binaries and run the same
+environment-driven command on every node. `RANK=0` starts the coordinator plus a
+local worker; other ranks start worker-only processes.
 
-```bash
-PORT="${MASTER_PORT:-8765}" scripts/agent-runtime-launch.sh start
-```
-
-The launcher defaults to `MODE=tmux`. Use `MODE=foreground` when you want to
-manage tmux yourself:
+Install from Git:
 
 ```bash
-MODE=foreground PORT="${MASTER_PORT:-8765}" scripts/agent-runtime-launch.sh start
+cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-coordinator --locked
+cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-worker --locked
+cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-cli --locked
+cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-runtime --locked
 ```
 
-The older `scripts/agent-runtime-tmux.sh` remains available for explicit
-`start-master` / `start-worker` operations.
-
-For the current two-port setup (`23456` and `23457`), follow
-[`docs/RUNBOOK.md`](docs/RUNBOOK.md).
-
-On the coordinator node:
+Install from a checkout during development:
 
 ```bash
-PORT="${MASTER_PORT:-8765}" scripts/agent-runtime-tmux.sh start-master
+cargo install --path crates/coordinator --locked
+cargo install --path crates/worker --locked
+cargo install --path crates/cli --locked
+cargo install --path crates/runtime --locked
 ```
 
-On worker-only nodes, copy the worker token into the same path or set
-`WORKER_TOKEN_FILE`, then run:
+Start the runtime in the foreground:
 
 ```bash
-COORDINATOR_ADDR="$MASTER_ADDR" PORT="$MASTER_PORT" \
-  scripts/agent-runtime-tmux.sh start-worker
+PORT="${MASTER_PORT:-8765}" \
+COORDINATOR_ADDR="${MASTER_ADDR:-127.0.0.1}" \
+agent-runtime start
 ```
 
-Check or stop a session:
+The foreground command is intended to be wrapped by your scheduler, launch
+script, or manually managed tmux session. `agent-runtime` writes
+`coordinator.log` and `worker-<node>.log` under `RUNTIME_DIR`, which defaults to
+`~/.agent-runtime`.
+
+If you want `agent-runtime` to create tmux sessions itself, set `MODE=tmux`:
 
 ```bash
-scripts/agent-runtime-tmux.sh status
-scripts/agent-runtime-tmux.sh stop
+MODE=tmux SESSION=agent-runtime-8765 PORT="${MASTER_PORT:-8765}" agent-runtime start
+MODE=tmux SESSION=agent-runtime-8765 agent-runtime status
+MODE=tmux SESSION=agent-runtime-8765 agent-runtime stop
 ```
+
+Worker-only nodes need the worker token at `WORKER_TOKEN_FILE` or
+`$RUNTIME_DIR/worker.token`. The client token should stay on the coordinator
+host.
 
 Use the generated client token for CLI access:
 
 ```bash
-./target/debug/agentctl \
+agentctl \
   --coordinator "ws://${MASTER_ADDR}:${MASTER_PORT}" \
   --token-file "$HOME/.agent-runtime/client.token" \
   nodes
