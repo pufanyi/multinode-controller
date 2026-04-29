@@ -1,0 +1,10 @@
+version: 1
+mode: allow_all
+
+sandbox:
+  profile: none
+  backend: none
+
+notes:
+  - Initial development profile.
+  - Every process still flows through PolicyEngine -> SandboxBackend -> Executor.

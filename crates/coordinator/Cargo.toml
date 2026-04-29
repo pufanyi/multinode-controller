@@ -1,0 +1,16 @@
+[package]
+name = "agent-coordinator"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+agent-jobstore.workspace = true
+agent-protocol.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
