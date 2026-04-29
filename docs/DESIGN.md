@@ -1,8 +1,8 @@
 # Design
 
-The source design is maintained in `docs/v0.1.md`.
+The source design is maintained in `docs/v0.0.1.md`.
 
-This implementation starts with the `v0.1` target from that document:
+This implementation starts with the `v0.0.1` target from that document:
 
 - single coordinator
 - outbound worker connection

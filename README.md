@@ -3,7 +3,7 @@
 Linux-only distributed agent runtime prototype based on a coordinator-worker
 architecture.
 
-The current design reference is [`docs/v0.1.md`](docs/v0.1.md).
+The current design reference is [`docs/v0.0.1.md`](docs/v0.0.1.md).
 The current two-machine lab runbook is [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ## Current scope

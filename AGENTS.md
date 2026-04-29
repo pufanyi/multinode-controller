@@ -7,12 +7,12 @@ This repository is a Linux-only, Rust-based distributed agent runtime prototype.
 - `crates/protocol` contains shared wire types and run/job/task models.
 - `crates/coordinator`, `crates/worker`, `crates/cli`, and `crates/runtime` provide the current binaries.
 - `crates/policy`, `crates/sandbox-linux`, `crates/executor`, and `crates/jobstore` implement the launch path and persistence boundary.
-- `docs/v0.1.md` is the active architecture/design reference.
+- `docs/v0.0.1.md` is the active architecture/design reference.
 - `docs/RUNBOOK.md` is the active two-machine deployment runbook.
 - `examples/allow-all.yaml` is the initial development policy profile.
 - `LICENSE` contains the project license.
 
-Planned crates such as `mcp-server` and `telemetry` are described in `docs/v0.1.md`; keep new code aligned with those boundaries.
+Planned crates such as `mcp-server` and `telemetry` are described in `docs/v0.0.1.md`; keep new code aligned with those boundaries.
 
 ## Build, Test, and Development Commands
 
