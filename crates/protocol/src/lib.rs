@@ -347,6 +347,27 @@ pub struct TaskAssignment {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TaskSummary {
+    pub job_id: JobId,
+    pub task_id: TaskId,
+    pub node_id: NodeId,
+    pub status: String,
+    pub created_at: Option<DateTime<Utc>>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub exited_at: Option<DateTime<Utc>>,
+    pub exit_code: Option<i32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JobSummary {
+    pub job_id: JobId,
+    pub status: String,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub tasks: Vec<TaskSummary>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskStarted {
     pub job_id: JobId,
     pub task_id: TaskId,
@@ -432,6 +453,22 @@ pub struct RunProcessRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ListJobsRequest {
+    pub limit: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TailJobRequest {
+    pub job_id: JobId,
+    pub lines: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KillJobRequest {
+    pub job_id: JobId,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunStarted {
     pub job_id: JobId,
     pub tasks: Vec<TaskAssignment>,
@@ -449,12 +486,17 @@ pub struct JobFinished {
 pub enum ClientRequest {
     ListNodes,
     RunProcess(RunProcessRequest),
+    ListJobs(ListJobsRequest),
+    TailJob(TailJobRequest),
+    KillJob(KillJobRequest),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum ClientResponse {
     Nodes(Vec<NodeSummary>),
+    Jobs(Vec<JobSummary>),
+    Logs(Vec<LogLine>),
     RunStarted(RunStarted),
     TaskStarted(TaskStarted),
     LogLine(LogLine),

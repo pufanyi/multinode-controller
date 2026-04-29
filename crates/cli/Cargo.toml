@@ -10,6 +10,7 @@ name = "agentctl"
 path = "src/main.rs"
 
 [dependencies]
+agent-auth.workspace = true
 agent-protocol.workspace = true
 anyhow.workspace = true
 clap.workspace = true

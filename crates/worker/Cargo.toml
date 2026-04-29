@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+agent-auth.workspace = true
 agent-executor.workspace = true
 agent-policy.workspace = true
 agent-protocol.workspace = true

@@ -1,6 +1,10 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use agent_protocol::{ClientRequest, ClientResponse, NodeId, RunProcessRequest, WireMessage};
+use agent_auth::{read_optional_token, websocket_request, AuthRole};
+use agent_protocol::{
+    ClientRequest, ClientResponse, JobId, KillJobRequest, ListJobsRequest, NodeId,
+    RunProcessRequest, TailJobRequest, WireMessage,
+};
 use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
 use futures_util::{SinkExt, StreamExt};
@@ -12,6 +16,10 @@ struct Args {
     #[arg(long, global = true, default_value = "ws://127.0.0.1:8765")]
     coordinator: String,
 
+    /// Bearer token file used to authenticate to the coordinator.
+    #[arg(long, global = true)]
+    token_file: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -19,6 +27,10 @@ struct Args {
 #[derive(Subcommand, Debug)]
 enum Command {
     Nodes,
+    Job {
+        #[command(subcommand)]
+        command: JobCommand,
+    },
     Run {
         #[arg(long, value_delimiter = ',')]
         nodes: Vec<String>,
@@ -26,7 +38,7 @@ enum Command {
         #[arg(long)]
         cwd: Option<PathBuf>,
 
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         wait: bool,
 
         #[arg(last = true, required = true)]
@@ -34,13 +46,36 @@ enum Command {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum JobCommand {
+    List {
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+    Tail {
+        job_id: String,
+
+        #[arg(long, default_value_t = 100)]
+        lines: usize,
+    },
+    Kill {
+        job_id: String,
+    },
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    let token = read_optional_token(args.token_file.as_ref())?;
 
     match args.command {
         Command::Nodes => {
-            let responses = request(&args.coordinator, ClientRequest::ListNodes).await?;
+            let responses = request(
+                &args.coordinator,
+                token.as_deref(),
+                ClientRequest::ListNodes,
+            )
+            .await?;
             for response in responses {
                 match response {
                     ClientResponse::Nodes(nodes) => {
@@ -78,7 +113,7 @@ async fn main() -> Result<()> {
                 env: BTreeMap::new(),
                 wait,
             });
-            let responses = request(&args.coordinator, run_request).await?;
+            let responses = request(&args.coordinator, token.as_deref(), run_request).await?;
             for response in responses {
                 match response {
                     ClientResponse::RunStarted(started) => {
@@ -118,17 +153,96 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        Command::Job { command } => match command {
+            JobCommand::List { limit } => {
+                let responses = request(
+                    &args.coordinator,
+                    token.as_deref(),
+                    ClientRequest::ListJobs(ListJobsRequest { limit }),
+                )
+                .await?;
+                for response in responses {
+                    match response {
+                        ClientResponse::Jobs(jobs) => {
+                            println!("JOB\tSTATUS\tTASKS\tUPDATED");
+                            for job in jobs {
+                                let updated = job
+                                    .updated_at
+                                    .map(|time| time.to_rfc3339())
+                                    .unwrap_or_else(|| "-".to_owned());
+                                println!(
+                                    "{}\t{}\t{}\t{}",
+                                    job.job_id,
+                                    job.status,
+                                    job.tasks.len(),
+                                    updated
+                                );
+                            }
+                        }
+                        ClientResponse::Error(message) => bail!(message),
+                        _ => {}
+                    }
+                }
+            }
+            JobCommand::Tail { job_id, lines } => {
+                let responses = request(
+                    &args.coordinator,
+                    token.as_deref(),
+                    ClientRequest::TailJob(TailJobRequest {
+                        job_id: JobId::from(job_id),
+                        lines,
+                    }),
+                )
+                .await?;
+                for response in responses {
+                    match response {
+                        ClientResponse::Logs(logs) => {
+                            for line in logs {
+                                println!(
+                                    "[{} {} {}] {}",
+                                    line.node_id, line.task_id, line.stream, line.line
+                                );
+                            }
+                        }
+                        ClientResponse::Error(message) => bail!(message),
+                        _ => {}
+                    }
+                }
+            }
+            JobCommand::Kill { job_id } => {
+                let responses = request(
+                    &args.coordinator,
+                    token.as_deref(),
+                    ClientRequest::KillJob(KillJobRequest {
+                        job_id: JobId::from(job_id),
+                    }),
+                )
+                .await?;
+                for response in responses {
+                    match response {
+                        ClientResponse::Ack => println!("kill requested"),
+                        ClientResponse::Error(message) => bail!(message),
+                        _ => {}
+                    }
+                }
+            }
+        },
     }
 
     Ok(())
 }
 
-async fn request(coordinator: &str, request: ClientRequest) -> Result<Vec<ClientResponse>> {
-    let (ws, _) = connect_async(coordinator).await?;
+async fn request(
+    coordinator: &str,
+    token: Option<&str>,
+    client_request: ClientRequest,
+) -> Result<Vec<ClientResponse>> {
+    let request = websocket_request(coordinator, AuthRole::Client, token)?;
+    let (ws, _) = connect_async(request).await?;
     let (mut write, mut read) = ws.split();
     write
         .send(Message::Text(
-            WireMessage::ClientRequest(request).to_text()?.into(),
+            WireMessage::ClientRequest(client_request).to_text()?.into(),
         ))
         .await?;
 
@@ -146,6 +260,8 @@ async fn request(coordinator: &str, request: ClientRequest) -> Result<Vec<Client
         let done = matches!(
             response,
             ClientResponse::Nodes(_)
+                | ClientResponse::Jobs(_)
+                | ClientResponse::Logs(_)
                 | ClientResponse::JobFinished(_)
                 | ClientResponse::Error(_)
                 | ClientResponse::Ack

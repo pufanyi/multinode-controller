@@ -1,7 +1,8 @@
 use std::{path::PathBuf, time::Duration};
 
+use agent_auth::{read_optional_token, websocket_request, AuthRole};
 use agent_executor::{ExecutionEvent, ExecutionRequest, Executor, LocalExecutor};
-use agent_policy::{AllowAllPolicy, PolicyEngine};
+use agent_policy::{ConfigPolicy, PolicyEngine};
 use agent_protocol::{
     CoordinatorMessage, DecisionKind, NodeHeartbeat, NodeInfo, OperationRequest, TaskSpec,
     WireMessage, WorkerError, WorkerMessage,
@@ -28,6 +29,10 @@ struct Args {
 
     #[arg(long)]
     policy: Option<PathBuf>,
+
+    /// Bearer token file used to authenticate to the coordinator.
+    #[arg(long)]
+    token_file: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -55,8 +60,10 @@ async fn run_worker(args: Args) -> Result<()> {
     let node_name = args.node_name.clone().unwrap_or_else(|| hostname.clone());
     let node = NodeInfo::new(node_name, hostname);
     let node_id = node.node_id.clone();
+    let token = read_optional_token(args.token_file.as_ref())?;
+    let request = websocket_request(&args.coordinator, AuthRole::Worker, token.as_deref())?;
 
-    let (ws, _) = connect_async(&args.coordinator)
+    let (ws, _) = connect_async(request)
         .await
         .with_context(|| format!("failed to connect to {}", args.coordinator))?;
     let (mut write, mut read) = ws.split();
@@ -106,7 +113,12 @@ async fn run_worker(args: Args) -> Result<()> {
     });
 
     println!("agent-worker connected as {node_id}");
-    let policy = AllowAllPolicy;
+    let policy = args
+        .policy
+        .as_ref()
+        .map(ConfigPolicy::from_path)
+        .transpose()?
+        .unwrap_or_default();
     let sandbox = NoneSandbox;
 
     while let Some(message) = read.next().await {
@@ -123,14 +135,16 @@ async fn run_worker(args: Args) -> Result<()> {
                 let executor = executor.clone();
                 let policy = policy.clone();
                 let sandbox = sandbox.clone();
+                let node_id = spec.run.node_id.clone();
+                let task_id = spec.run.task_id.clone();
                 tokio::spawn(async move {
                     if let Err(error) =
                         start_task(spec, policy, sandbox, executor, out_tx.clone()).await
                     {
                         let _ = out_tx
                             .send(WireMessage::Worker(WorkerMessage::Error(WorkerError {
-                                node_id: None,
-                                task_id: None,
+                                node_id: Some(node_id),
+                                task_id: Some(task_id),
                                 message: format!("{error:#}"),
                             })))
                             .await;
@@ -160,7 +174,7 @@ async fn run_worker(args: Args) -> Result<()> {
 
 async fn start_task(
     spec: TaskSpec,
-    policy: AllowAllPolicy,
+    policy: ConfigPolicy,
     sandbox: NoneSandbox,
     executor: LocalExecutor,
     out_tx: mpsc::Sender<WireMessage>,

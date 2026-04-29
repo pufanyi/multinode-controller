@@ -7,3 +7,6 @@ rust-version.workspace = true
 
 [dependencies]
 agent-protocol.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true

@@ -1,0 +1,11 @@
+version: 1
+mode: allow_all
+
+deny_commands:
+  - rm
+  - shutdown
+  - reboot
+
+sandbox:
+  profile: none
+  backend: none
