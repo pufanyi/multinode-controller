@@ -22,6 +22,8 @@ Usage:
   scripts/agent-runtime-tmux.sh status
   scripts/agent-runtime-tmux.sh stop
 
+For training-cluster style launch, prefer scripts/agent-runtime-launch.sh.
+
 Environment overrides:
   SESSION              tmux session name, default agent-runtime
   PORT                 coordinator port, default MASTER_PORT or 8765

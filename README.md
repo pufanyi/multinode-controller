@@ -94,8 +94,23 @@ worker and client tokens separate.
 
 ## Tmux startup
 
-For lab machines, `scripts/agent-runtime-tmux.sh` starts long-running processes
-inside tmux without needing systemd.
+For lab machines, `scripts/agent-runtime-launch.sh` provides a single
+environment-driven launcher that can be distributed to every node. By default,
+`RANK=0` starts coordinator + worker, and other ranks start worker only.
+
+```bash
+PORT="${MASTER_PORT:-8765}" scripts/agent-runtime-launch.sh start
+```
+
+The launcher defaults to `MODE=tmux`. Use `MODE=foreground` when you want to
+manage tmux yourself:
+
+```bash
+MODE=foreground PORT="${MASTER_PORT:-8765}" scripts/agent-runtime-launch.sh start
+```
+
+The older `scripts/agent-runtime-tmux.sh` remains available for explicit
+`start-master` / `start-worker` operations.
 
 For the current two-port setup (`23456` and `23457`), follow
 [`docs/RUNBOOK.md`](docs/RUNBOOK.md).

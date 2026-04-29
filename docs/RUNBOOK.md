@@ -32,7 +32,72 @@ shared across machines, the generated token file may already be visible on the
 worker. Otherwise copy only the worker token to the worker host. Do not copy the
 client token to worker-only machines.
 
+## One-script launch
+
+The preferred lab launcher is `scripts/agent-runtime-launch.sh`. It is designed
+for training environments where the same command is distributed to every node
+and environment variables describe the node role.
+
+Default role selection:
+
+```text
+RANK=0       coordinator + local worker
+RANK!=0      worker only
+```
+
+Default process mode is `MODE=tmux`. Set `MODE=foreground` if you want to put
+the command inside your own tmux window manually.
+
+For a single runtime on the environment-provided port:
+
+```bash
+cd /mnt/umm/users/pufanyi/workspace/multinode-controller
+
+PORT="${MASTER_PORT:-8765}" \
+COORDINATOR_ADDR="${MASTER_ADDR:-127.0.0.1}" \
+POLICY="$PWD/examples/deny-dangerous.yaml" \
+scripts/agent-runtime-launch.sh start
+```
+
+The same command can be run on every node. Rank 0 creates token files when they
+are missing. Worker-only ranks require the worker token to exist at
+`$WORKER_TOKEN_FILE`, or at `$RUNTIME_DIR/worker.token`.
+
+To run it inside a tmux pane you manage yourself:
+
+```bash
+MODE=foreground \
+PORT="${MASTER_PORT:-8765}" \
+COORDINATOR_ADDR="${MASTER_ADDR:-127.0.0.1}" \
+POLICY="$PWD/examples/deny-dangerous.yaml" \
+scripts/agent-runtime-launch.sh start
+```
+
 ## Restart 23456
+
+Using the one-script launcher, run this on every node:
+
+```bash
+cd /mnt/umm/users/pufanyi/workspace/multinode-controller
+
+SESSION=agent-runtime \
+PORT=23456 \
+COORDINATOR_ADDR="$MASTER_ADDR" \
+RUNTIME_DIR="$HOME/.agent-runtime" \
+NODE_NAME="${HOSTNAME}-rank-${RANK}" \
+POLICY="$PWD/examples/deny-dangerous.yaml" \
+scripts/agent-runtime-launch.sh stop 2>/dev/null || true
+
+SESSION=agent-runtime \
+PORT=23456 \
+COORDINATOR_ADDR="$MASTER_ADDR" \
+RUNTIME_DIR="$HOME/.agent-runtime" \
+NODE_NAME="${HOSTNAME}-rank-${RANK}" \
+POLICY="$PWD/examples/deny-dangerous.yaml" \
+scripts/agent-runtime-launch.sh start
+```
+
+For explicit master/worker operations, use the older tmux wrapper below.
 
 On the master:
 
@@ -84,6 +149,28 @@ Verify from the master:
 ```
 
 ## Restart 23457
+
+Using the one-script launcher, run this on every node:
+
+```bash
+cd /mnt/umm/users/pufanyi/workspace/multinode-controller
+
+SESSION=agent-runtime-auth-debug \
+PORT=23457 \
+COORDINATOR_ADDR="$MASTER_ADDR" \
+RUNTIME_DIR="$HOME/.agent-runtime/auth-debug" \
+NODE_NAME="${HOSTNAME}-auth-rank-${RANK}" \
+POLICY="$PWD/examples/deny-dangerous.yaml" \
+scripts/agent-runtime-launch.sh stop 2>/dev/null || true
+
+SESSION=agent-runtime-auth-debug \
+PORT=23457 \
+COORDINATOR_ADDR="$MASTER_ADDR" \
+RUNTIME_DIR="$HOME/.agent-runtime/auth-debug" \
+NODE_NAME="${HOSTNAME}-auth-rank-${RANK}" \
+POLICY="$PWD/examples/deny-dangerous.yaml" \
+scripts/agent-runtime-launch.sh start
+```
 
 On the master:
 
