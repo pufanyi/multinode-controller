@@ -42,6 +42,10 @@ require_tmux() {
   }
 }
 
+tmux_target() {
+  printf '=%s' "$SESSION"
+}
+
 generate_token() {
   if command -v python3 >/dev/null; then
     python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
@@ -70,7 +74,7 @@ start_master() {
   ensure_token "$CLIENT_TOKEN_FILE"
   build_bins
 
-  if tmux has-session -t "$SESSION" 2>/dev/null; then
+  if tmux has-session -t "$(tmux_target)" 2>/dev/null; then
     echo "tmux session $SESSION already exists" >&2
     exit 1
   fi
@@ -81,7 +85,7 @@ start_master() {
   tmux new-session -d -s "$SESSION" -n coordinator \
     "cd '$REPO_ROOT' && ./target/debug/agent-coordinator --listen '$LISTEN' --db '$DB' --worker-token-file '$WORKER_TOKEN_FILE' --client-token-file '$CLIENT_TOKEN_FILE' >> '$RUNTIME_DIR/coordinator.log' 2>&1"
   sleep 1
-  tmux new-window -t "$SESSION" -n worker \
+  tmux new-window -t "$(tmux_target)" -n worker \
     "cd '$REPO_ROOT' && ./target/debug/agent-worker --coordinator '$COORDINATOR_URL' --node-name '$NODE_NAME' --workspace-root '$REPO_ROOT' --policy '$POLICY' --token-file '$WORKER_TOKEN_FILE' >> '$RUNTIME_DIR/worker-${NODE_NAME}.log' 2>&1"
 
   echo "started tmux session $SESSION"
@@ -98,8 +102,8 @@ start_worker() {
   fi
   build_bins
 
-  if tmux has-session -t "$SESSION" 2>/dev/null; then
-    tmux kill-session -t "$SESSION"
+  if tmux has-session -t "$(tmux_target)" 2>/dev/null; then
+    tmux kill-session -t "$(tmux_target)"
   fi
 
   : > "$RUNTIME_DIR/worker-${NODE_NAME}.log"
@@ -112,12 +116,12 @@ start_worker() {
 
 status() {
   require_tmux
-  tmux list-windows -t "$SESSION"
+  tmux list-windows -t "$(tmux_target)"
 }
 
 stop() {
   require_tmux
-  tmux kill-session -t "$SESSION"
+  tmux kill-session -t "$(tmux_target)"
 }
 
 case "${1:-}" in
