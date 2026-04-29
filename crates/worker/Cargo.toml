@@ -1,0 +1,19 @@
+[package]
+name = "agent-worker"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+agent-executor.workspace = true
+agent-policy.workspace = true
+agent-protocol.workspace = true
+agent-sandbox-linux.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+hostname.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
