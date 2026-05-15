@@ -45,11 +45,16 @@ Each runtime has its own coordinator SQLite file and token files under
 Install the four binaries on every machine:
 
 ```bash
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-coordinator --locked
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-worker --locked
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-cli --locked
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-runtime --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-coordinator --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-worker --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-cli --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-runtime --locked
 ```
+
+For private SSH access, use
+`ssh://git@github.com/pufanyi/multinode-controller.git`. If `git clone` works
+but `cargo install --git` fails to authenticate, run Cargo with
+`CARGO_NET_GIT_FETCH_WITH_CLI=true`.
 
 For local development from a checkout:
 
@@ -133,6 +138,33 @@ MODE=tmux SESSION=agent-runtime-23456 agent-runtime stop
 `agent-runtime stop` and `agent-runtime status` are only defined for
 `MODE=tmux`.
 
+## Discover an existing runtime
+
+When attaching to a machine that already has `agent-runtime` running, first
+discover the live coordinator port and token paths instead of assuming the
+defaults:
+
+```bash
+pgrep -af 'agent-(runtime|coordinator|worker)'
+ls -la "${RUNTIME_DIR:-$HOME/.agent-runtime}"
+```
+
+If `pgrep` is unavailable, inspect `ps -ef`. The `agent-coordinator` process
+line shows the active `--listen` address, SQLite path, worker token file, and
+client token file. Use the client token only from the coordinator/control host:
+
+```bash
+agentctl \
+  --coordinator "ws://127.0.0.1:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  nodes
+```
+
+In managed agent sandboxes, local WebSocket access can fail with
+`Operation not permitted` even when the runtime is healthy. Retry the same
+`agentctl` command outside the sandbox before treating that error as a runtime
+or networking failure.
+
 ## Restart 23456
 
 Run this on every node:
@@ -188,13 +220,41 @@ agentctl \
 
 ## Smoke tests
 
-Run on all connected nodes:
+Run a basic command on all connected nodes:
 
 ```bash
 agentctl \
   --coordinator "ws://${MASTER_ADDR}:23456" \
   --token-file "$HOME/.agent-runtime/client.token" \
   run -- sh -lc 'hostname; echo rank=${RANK:-unset}'
+```
+
+Run a command that verifies scheduling, stdout streaming, and local Python:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  run -- python3 -c 'import socket, platform; print("node=" + socket.gethostname()); print("kernel=" + platform.release()); print("check=" + str(sum(i*i for i in range(10000))))'
+```
+
+Run the same check on one selected node using the exact node name from
+`agentctl nodes`:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  run --nodes node-a -- python3 -c 'import socket; print(socket.gethostname())'
+```
+
+For GPU inventory across the connected nodes:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  run -- nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
 ```
 
 Inspect jobs and logs:

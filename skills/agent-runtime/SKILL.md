@@ -28,7 +28,19 @@ scripts. If startup behavior needs to change, update `crates/runtime`,
 
 3. If behavior is unclear, read `README.md`, `docs/RUNBOOK.md`, and
    `docs/PROTOCOL.md` from the current repository before acting.
-4. Before operations with side effects, identify the coordinator address,
+4. When attaching to an already-running cluster, discover the active address and
+   runtime directory instead of assuming port `8765`. Check process arguments
+   and the runtime directory:
+
+   ```bash
+   pgrep -af 'agent-(runtime|coordinator|worker)'
+   ls -la "${RUNTIME_DIR:-$HOME/.agent-runtime}"
+   ```
+
+   If `pgrep` is unavailable, inspect `ps -ef`. The coordinator process shows
+   the active `--listen` address, SQLite path, worker token file, and client
+   token file. Do not print token contents.
+5. Before operations with side effects, identify the coordinator address,
    runtime directory, token files, and target nodes. Do not invent remote host
    names or token paths.
 
@@ -46,11 +58,15 @@ cargo install --path crates/runtime --locked
 From Git:
 
 ```bash
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-coordinator --locked
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-worker --locked
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-cli --locked
-cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git agent-runtime --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-coordinator --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-worker --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-cli --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-runtime --locked
 ```
+
+For a private repository, use the SSH URL. If `git clone` succeeds but Cargo
+cannot authenticate, set `CARGO_NET_GIT_FETCH_WITH_CLI=true` so Cargo uses the
+system Git client for fetching.
 
 ## Runtime environment
 
@@ -123,11 +139,44 @@ RUNTIME_DIR="${RUNTIME_DIR:-$HOME/.agent-runtime}"
 AGENTCTL=(agentctl --coordinator "ws://${MASTER_ADDR}:${MASTER_PORT}" --token-file "$RUNTIME_DIR/client.token")
 ```
 
+In a managed Codex sandbox, local WebSocket access can fail with
+`Operation not permitted`. If the coordinator process is running and an
+`agentctl` command fails with that exact OS error, rerun the same `agentctl`
+command with escalated permissions before concluding that the cluster is down.
+
 List nodes:
 
 ```bash
 "${AGENTCTL[@]}" nodes
 ```
+
+## Verify access
+
+When the user asks whether the cluster is usable, prove the full control path
+with safe commands before running heavier work.
+
+1. List nodes and use the exact node names from the output:
+
+   ```bash
+   "${AGENTCTL[@]}" nodes
+   ```
+
+2. Run a small command on all connected nodes:
+
+   ```bash
+   "${AGENTCTL[@]}" run -- python3 -c 'import socket, platform; print("node=" + socket.gethostname()); print("kernel=" + platform.release()); print("check=" + str(sum(i*i for i in range(10000))))'
+   ```
+
+3. For per-node validation, run the same command with `--nodes <node-name>`.
+
+4. If the user asks about GPU availability, query each node with `nvidia-smi`:
+
+   ```bash
+   "${AGENTCTL[@]}" run -- nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
+   ```
+
+Report node names, whether each task exited successfully, and the relevant
+stdout. Keep the output concise; do not include tokens.
 
 Run a command on all connected nodes:
 

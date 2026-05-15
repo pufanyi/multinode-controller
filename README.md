@@ -19,8 +19,17 @@ curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/s
 **Install Runtime Core Components**
 Use a single command to automatically pull and install all required components (`agent-coordinator`, `agent-worker`, `agent-cli`, `agent-runtime`):
 ```bash
-for pkg in agent-coordinator agent-worker agent-cli agent-runtime; do cargo install --git ssh://git@github.com/pufanyi/multinode-controller.git $pkg --locked; done
+REPO_URL="${MULTINODE_REPO_URL:-https://github.com/pufanyi/multinode-controller.git}"
+for pkg in agent-coordinator agent-worker agent-cli agent-runtime; do cargo install --git "$REPO_URL" "$pkg" --locked; done
 ```
+
+If you are already inside a checkout, install without GitHub authentication:
+
+```bash
+for path in crates/coordinator crates/worker crates/cli crates/runtime; do cargo install --path "$path" --locked; done
+```
+
+For a private SSH repository, set `MULTINODE_REPO_URL=ssh://git@github.com/pufanyi/multinode-controller.git`. If normal `git clone` works but Cargo SSH auth fails, run with `CARGO_NET_GIT_FETCH_WITH_CLI=true`.
 
 ### 2. One-click Use
 
@@ -43,6 +52,20 @@ Once started, you can immediately view the running nodes using the client tool (
 agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" nodes
 ```
 
+Run a safe command across all connected nodes:
+
+```bash
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" \
+  run -- python3 -c 'import socket; print(socket.gethostname())'
+```
+
+Check GPU inventory when `nvidia-smi` is available:
+
+```bash
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" \
+  run -- nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
+```
+
 ---
 
 ## Agent skill
@@ -61,7 +84,9 @@ The installer copies the skill to both `${CODEX_HOME:-$HOME/.codex}/skills` and
 `$agent-runtime` in Codex or `/agent-runtime` in Claude Code. The skill does not
 replace binary installation; install `agent-runtime`, `agentctl`,
 `agent-coordinator`, and `agent-worker` with the commands below before using it
-to control a cluster.
+to control a cluster. The skill includes an access-verification workflow for
+discovering an already-running coordinator, listing nodes, running a safe smoke
+test, and checking GPU inventory.
 
 ## Current scope
 
@@ -158,6 +183,19 @@ local worker; other ranks start worker-only processes.
 
 Startup is intentionally handled by installed binaries rather than repo-local
 scripts, so machines do not need a repository checkout after installation.
+
+Install from Git over HTTPS:
+
+```bash
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-coordinator --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-worker --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-cli --locked
+cargo install --git https://github.com/pufanyi/multinode-controller.git agent-runtime --locked
+```
+
+For private SSH access, use `ssh://git@github.com/pufanyi/multinode-controller.git`
+and set `CARGO_NET_GIT_FETCH_WITH_CLI=true` if Cargo cannot authenticate but
+`git clone` can.
 
 Install from a checkout during development:
 
