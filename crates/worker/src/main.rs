@@ -16,7 +16,11 @@ use tokio::{sync::mpsc, time::sleep};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 #[derive(Parser, Debug, Clone)]
-#[command(about = "Worker daemon for the multinode agent runtime")]
+#[command(
+    name = "agent-worker",
+    version,
+    about = "Worker daemon for the multinode agent runtime"
+)]
 struct Args {
     #[arg(long, default_value = "ws://127.0.0.1:8765")]
     coordinator: String,

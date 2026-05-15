@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "agent-auth"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "tokio-tungstenite",
@@ -12,7 +12,7 @@ dependencies = [
 
 [[package]]
 name = "agent-cli"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "agent-auth",
  "agent-protocol",
@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "agent-coordinator"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "agent-auth",
  "agent-jobstore",
@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "agent-executor"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "agent-protocol",
  "agent-sandbox-linux",
@@ -53,7 +53,7 @@ dependencies = [
 
 [[package]]
 name = "agent-jobstore"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "agent-policy"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -74,7 +74,7 @@ dependencies = [
 
 [[package]]
 name = "agent-protocol"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -85,7 +85,7 @@ dependencies = [
 
 [[package]]
 name = "agent-runtime"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -95,7 +95,7 @@ dependencies = [
 
 [[package]]
 name = "agent-sandbox-linux"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "agent-protocol",
  "anyhow",
@@ -104,7 +104,7 @@ dependencies = [
 
 [[package]]
 name = "agent-worker"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "agent-auth",
  "agent-executor",

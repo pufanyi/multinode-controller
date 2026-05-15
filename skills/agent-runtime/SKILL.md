@@ -46,6 +46,18 @@ scripts. If startup behavior needs to change, update `crates/runtime`,
 
 ## Install binaries
 
+From the latest GitHub Release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh
+```
+
+Install the agent skill with the binaries:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh -s -- --with-skill
+```
+
 From a checkout:
 
 ```bash

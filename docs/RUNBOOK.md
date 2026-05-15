@@ -42,7 +42,25 @@ Each runtime has its own coordinator SQLite file and token files under
 
 ## Install
 
-Install the four binaries on every machine:
+Install the latest release binaries on every machine:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh
+```
+
+Install a pinned release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh -s -- --version v0.0.1
+```
+
+The v0.0.1 release publishes Linux x86_64 binaries. The installer writes
+`agent-runtime`, `agentctl`, `agent-coordinator`, and `agent-worker` to
+`${HOME}/.local/bin` by default. Use `--prefix <dir>` or `--bin-dir <dir>` to
+choose another destination.
+
+Install the four binaries from source when release artifacts are not available
+for the target machine:
 
 ```bash
 cargo install --git https://github.com/pufanyi/multinode-controller.git agent-coordinator --locked

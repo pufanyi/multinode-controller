@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build release artifact
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --target "${{ matrix.target }}"
+
+      - name: Use stable toolchain
+        run: rustup default stable
+
+      - name: Build
+        run: cargo build --workspace --release --locked --target "${{ matrix.target }}"
+
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          dist="multinode-controller-${RELEASE_TAG}-${TARGET}"
+          mkdir -p "$dist/bin" "$dist/examples" "$dist/skills"
+
+          install -m 755 "target/${TARGET}/release/agent-runtime" "$dist/bin/agent-runtime"
+          install -m 755 "target/${TARGET}/release/agentctl" "$dist/bin/agentctl"
+          install -m 755 "target/${TARGET}/release/agent-coordinator" "$dist/bin/agent-coordinator"
+          install -m 755 "target/${TARGET}/release/agent-worker" "$dist/bin/agent-worker"
+
+          cp README.md LICENSE install.sh "$dist/"
+          cp examples/*.yaml "$dist/examples/"
+          cp -R skills/agent-runtime "$dist/skills/agent-runtime"
+
+          tar -czf "${dist}.tar.gz" "$dist"
+          sha256sum "${dist}.tar.gz" > "${dist}.sha256"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            multinode-controller-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            multinode-controller-${{ github.ref_name }}-${{ matrix.target }}.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create checksums
+        run: cat dist/*.sha256 > dist/checksums.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          make_latest: true
+          body: |
+            Linux x86_64 release binaries for multinode-controller.
+
+            Install:
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh -s -- --version ${{ github.ref_name }}
+            ```
+
+            The archive includes `agent-runtime`, `agentctl`, `agent-coordinator`, `agent-worker`, example policies, and the `agent-runtime` skill.
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt

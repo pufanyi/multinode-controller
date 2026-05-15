@@ -34,7 +34,11 @@ use tokio_tungstenite::{
 };
 
 #[derive(Parser, Debug)]
-#[command(about = "Coordinator daemon for the multinode agent runtime")]
+#[command(
+    name = "agent-coordinator",
+    version,
+    about = "Coordinator daemon for the multinode agent runtime"
+)]
 struct Args {
     #[arg(long, default_value = "127.0.0.1:8765")]
     listen: String,

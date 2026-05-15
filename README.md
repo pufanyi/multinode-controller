@@ -4,6 +4,7 @@ Linux-only distributed agent runtime prototype based on a coordinator-worker arc
 
 The current design reference is [`docs/v0.0.1.md`](docs/v0.0.1.md).
 The current two-machine lab runbook is [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+The release checklist is [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ---
 
@@ -11,25 +12,48 @@ The current two-machine lab runbook is [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ### 1. One-click Install
 
+**Install Runtime Core Components**
+
+Install the latest GitHub Release binaries:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh
+```
+
+Install a pinned release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh -s -- --version v0.0.1
+```
+
+The v0.0.1 release publishes Linux x86_64 binaries. The installer downloads the
+matching release archive and installs `agent-coordinator`, `agent-worker`,
+`agentctl`, and `agent-runtime` to `${HOME}/.local/bin` by default. Use
+`--prefix <dir>` or `--bin-dir <dir>` to choose another destination.
+
 **Install Agent Skill (for Codex / Claude Code)**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/scripts/install-agent-runtime-skill.sh | sh
 ```
 
-**Install Runtime Core Components**
-Use a single command to automatically pull and install all required components (`agent-coordinator`, `agent-worker`, `agent-cli`, `agent-runtime`):
+Or install binaries and the agent skill together:
+
 ```bash
-REPO_URL="${MULTINODE_REPO_URL:-https://github.com/pufanyi/multinode-controller.git}"
-for pkg in agent-coordinator agent-worker agent-cli agent-runtime; do cargo install --git "$REPO_URL" "$pkg" --locked; done
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh -s -- --with-skill
 ```
 
-If you are already inside a checkout, install without GitHub authentication:
+If you are already inside a checkout, install development binaries without
+GitHub:
 
 ```bash
 for path in crates/coordinator crates/worker crates/cli crates/runtime; do cargo install --path "$path" --locked; done
 ```
 
-For a private SSH repository, set `MULTINODE_REPO_URL=ssh://git@github.com/pufanyi/multinode-controller.git`. If normal `git clone` works but Cargo SSH auth fails, run with `CARGO_NET_GIT_FETCH_WITH_CLI=true`.
+For source installs from a private SSH repository, set
+`MULTINODE_REPO_URL=ssh://git@github.com/pufanyi/multinode-controller.git`. If
+normal `git clone` works but Cargo SSH auth fails, run with
+`CARGO_NET_GIT_FETCH_WITH_CLI=true`.
 
 ### 2. One-click Use
 
@@ -214,7 +238,13 @@ local worker; other ranks start worker-only processes.
 Startup is intentionally handled by installed binaries rather than repo-local
 scripts, so machines do not need a repository checkout after installation.
 
-Install from Git over HTTPS:
+Install the latest release binaries:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/install.sh | sh
+```
+
+Install from Git over HTTPS when you need to build from source:
 
 ```bash
 cargo install --git https://github.com/pufanyi/multinode-controller.git agent-coordinator --locked

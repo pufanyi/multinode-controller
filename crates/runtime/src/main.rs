@@ -20,7 +20,11 @@ use signal_hook::{
 };
 
 #[derive(Parser, Debug)]
-#[command(about = "Environment-driven launcher for the multinode agent runtime")]
+#[command(
+    name = "agent-runtime",
+    version,
+    about = "Environment-driven launcher for the multinode agent runtime"
+)]
 struct Args {
     #[command(subcommand)]
     command: CommandKind,
