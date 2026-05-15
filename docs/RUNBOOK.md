@@ -6,6 +6,27 @@ are installed on each machine and available on `PATH`.
 The runtime is launched through installable binaries. The repository does not
 provide startup scripts as the deployment contract.
 
+## Agent skill
+
+Codex and Claude Code can install a shared `agent-runtime` skill that teaches the
+agent how to operate this runtime with `agent-runtime` and `agentctl`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/scripts/install-agent-runtime-skill.sh | sh
+```
+
+From a checkout:
+
+```bash
+./scripts/install-agent-runtime-skill.sh
+```
+
+The installer writes to both `${CODEX_HOME:-$HOME/.codex}/skills/agent-runtime`
+and `${CLAUDE_HOME:-$HOME/.claude}/skills/agent-runtime` by default. Use
+`./scripts/install-agent-runtime-skill.sh --codex` or `--claude` to install only
+one target. Restart Codex after installation; restart Claude Code if the
+installer created `~/.claude/skills` for the first time.
+
 ## Port layout
 
 Use separate runtime directories when running more than one coordinator on the

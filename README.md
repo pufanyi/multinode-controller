@@ -6,6 +6,30 @@ architecture.
 The current design reference is [`docs/v0.0.1.md`](docs/v0.0.1.md).
 The current two-machine lab runbook is [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
+## Agent skill
+
+Codex and Claude Code can install the same `agent-runtime` skill for operating
+this runtime through `agent-runtime` and `agentctl`.
+
+One-command install from GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pufanyi/multinode-controller/main/scripts/install-agent-runtime-skill.sh | sh
+```
+
+Install from a checkout:
+
+```bash
+./scripts/install-agent-runtime-skill.sh
+```
+
+The installer copies the skill to both `${CODEX_HOME:-$HOME/.codex}/skills` and
+`${CLAUDE_HOME:-$HOME/.claude}/skills` by default. Invoke it as
+`$agent-runtime` in Codex or `/agent-runtime` in Claude Code. The skill does not
+replace binary installation; install `agent-runtime`, `agentctl`,
+`agent-coordinator`, and `agent-worker` with the commands below before using it
+to control a cluster.
+
 ## Current scope
 
 This initial version implements:
