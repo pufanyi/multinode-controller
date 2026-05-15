@@ -175,8 +175,48 @@ with safe commands before running heavier work.
    "${AGENTCTL[@]}" run -- nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
    ```
 
+5. Prefer the ML shortcuts when the installed `agentctl` supports them:
+
+   ```bash
+   "${AGENTCTL[@]}" inventory gpu
+   "${AGENTCTL[@]}" inventory cuda
+   "${AGENTCTL[@]}" inventory torch
+   "${AGENTCTL[@]}" health gpu
+   "${AGENTCTL[@]}" health torch
+   ```
+
 Report node names, whether each task exited successfully, and the relevant
 stdout. Keep the output concise; do not include tokens.
+
+## ML workflows
+
+Use these commands for machine-learning oriented operations:
+
+```bash
+"${AGENTCTL[@]}" inventory nodes
+"${AGENTCTL[@]}" inventory gpu
+"${AGENTCTL[@]}" inventory cuda
+"${AGENTCTL[@]}" inventory torch
+"${AGENTCTL[@]}" health gpu
+"${AGENTCTL[@]}" health torch
+"${AGENTCTL[@]}" health nccl --nodes node-a,node-b --gpus-per-node 1
+"${AGENTCTL[@]}" lease create --nodes node-a,node-b --gpus-per-node 1
+"${AGENTCTL[@]}" lease list
+"${AGENTCTL[@]}" lease release lease_xxx
+"${AGENTCTL[@]}" ml torchrun --lease lease_xxx --gpus-per-node 1 --timeout-seconds 3600 -- python train.py
+"${AGENTCTL[@]}" run --wait false --timeout-seconds 3600 -- python train.py
+"${AGENTCTL[@]}" job status job_xxx
+"${AGENTCTL[@]}" job watch job_xxx --interval 5 --lines 20
+"${AGENTCTL[@]}" job diagnose job_xxx --lines 200
+```
+
+`ml torchrun` sets per-node rank environment through the coordinator and runs
+`torchrun` on each selected node. If `--master-addr` is omitted, `agentctl` uses
+the hostname of the first selected node. Use `--wait false` when the task should
+keep running while the agent does other work; this is background execution, not
+process suspension. Use `--timeout-seconds` to have the worker kill overlong
+tasks. Leases are in-memory coordinator reservations; recreate them after a
+coordinator restart.
 
 Run a command on all connected nodes:
 

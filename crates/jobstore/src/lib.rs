@@ -226,6 +226,16 @@ impl SqliteJobStore {
         Ok(jobs)
     }
 
+    pub fn get_job(&self, job_id: &JobId) -> Result<Option<JobSummary>> {
+        let conn = self.conn.lock().expect("sqlite mutex poisoned");
+        let tasks = self.list_tasks_for_job_locked(&conn, job_id)?;
+        if tasks.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(job_summary(tasks)))
+        }
+    }
+
     pub fn tail_logs(&self, job_id: &JobId, lines: usize) -> Result<Vec<LogLine>> {
         let conn = self.conn.lock().expect("sqlite mutex poisoned");
         let mut stmt = conn.prepare(

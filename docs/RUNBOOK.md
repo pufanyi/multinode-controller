@@ -257,6 +257,103 @@ agentctl \
   run -- nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
 ```
 
+The ML shortcuts wrap the same execution path with commands that are easier for
+agents and operators to remember:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  inventory gpu
+
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  inventory cuda
+
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  inventory torch
+```
+
+Health checks run safe smoke tests where the required tools are installed:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  health gpu
+
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  health torch
+
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  health nccl --nodes node-a,node-b --gpus-per-node 1 --master-port 29500
+```
+
+Use a lease before launching ML work that should not overlap with other jobs on
+the same nodes:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  lease create --nodes node-a,node-b --gpus-per-node 1
+
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  lease list
+```
+
+Launch a distributed PyTorch job through `torchrun`. If `--master-addr` is not
+provided, `agentctl` uses the hostname of the first selected node:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  ml torchrun --lease lease_xxx --gpus-per-node 1 --master-port 29500 --timeout-seconds 3600 -- python train.py
+```
+
+Submit a task in the background when the agent or operator should not wait for
+completion. The task keeps running on the worker; only the client returns early:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  run --wait false --timeout-seconds 3600 -- python train.py
+```
+
+Check one job or watch it until it leaves the running state:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  job status job_xxx
+
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  job watch job_xxx --interval 5 --lines 20
+```
+
+Diagnose a failed or running job from stored task state and recent logs:
+
+```bash
+agentctl \
+  --coordinator "ws://${MASTER_ADDR}:23456" \
+  --token-file "$HOME/.agent-runtime/client.token" \
+  job diagnose job_xxx --lines 200
+```
+
 Inspect jobs and logs:
 
 ```bash

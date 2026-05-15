@@ -5,10 +5,16 @@ use agent_sandbox_linux::SandboxCommand;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use chrono::Utc;
+#[cfg(unix)]
+use nix::{
+    sys::signal::{killpg, Signal},
+    unistd::Pid,
+};
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, BufReader},
-    process::Command,
+    process::{Child, Command},
     sync::{mpsc, Mutex},
+    time::{sleep, Duration},
 };
 
 #[derive(Clone, Debug)]
@@ -72,14 +78,7 @@ impl Executor for LocalExecutor {
 
         #[cfg(unix)]
         if command.kill_process_group {
-            unsafe {
-                child_command.pre_exec(|| {
-                    if libc::setsid() == -1 {
-                        return Err(std::io::Error::last_os_error());
-                    }
-                    Ok(())
-                });
-            }
+            child_command.process_group(0);
         }
 
         let mut child = child_command
@@ -114,14 +113,20 @@ impl Executor for LocalExecutor {
         let task_id = spec.task_id.clone();
         let job_id = spec.job_id.clone();
         let node_id = spec.node_id.clone();
+        let timeout = spec.timeout;
         let wait_events = events.clone();
         tokio::spawn(async move {
-            let exit = child.wait().await;
+            let (exit_code, success) = wait_with_optional_timeout(
+                &mut child,
+                pid,
+                timeout.map(|value| value.seconds),
+                &job_id,
+                &task_id,
+                &node_id,
+                &wait_events,
+            )
+            .await;
             processes.lock().await.remove(&task_id);
-            let (exit_code, success) = match exit {
-                Ok(status) => (status.code(), status.success()),
-                Err(_) => (None, false),
-            };
             let _ = wait_events
                 .send(ExecutionEvent::Exited(TaskExited {
                     job_id,
@@ -147,12 +152,8 @@ impl Executor for LocalExecutor {
 
         #[cfg(unix)]
         {
-            let process_group = -(pid as i32);
-            let rc = unsafe { libc::kill(process_group, libc::SIGTERM) };
-            if rc == -1 {
-                return Err(std::io::Error::last_os_error())
-                    .context("failed to kill process group");
-            }
+            let process_group = Pid::from_raw(pid as i32);
+            killpg(process_group, Signal::SIGTERM).context("failed to kill process group")?;
             Ok(())
         }
 
@@ -162,6 +163,63 @@ impl Executor for LocalExecutor {
             Err(anyhow!("process group kill is only implemented on Unix"))
         }
     }
+}
+
+async fn wait_with_optional_timeout(
+    child: &mut Child,
+    pid: Option<u32>,
+    timeout_seconds: Option<u64>,
+    job_id: &agent_protocol::JobId,
+    task_id: &TaskId,
+    node_id: &agent_protocol::NodeId,
+    events: &mpsc::Sender<ExecutionEvent>,
+) -> (Option<i32>, bool) {
+    let Some(seconds) = timeout_seconds.filter(|seconds| *seconds > 0) else {
+        return exit_result(child.wait().await);
+    };
+
+    tokio::select! {
+        exit = child.wait() => exit_result(exit),
+        _ = sleep(Duration::from_secs(seconds)) => {
+            let _ = events
+                .send(ExecutionEvent::Log(LogLine {
+                    job_id: job_id.clone(),
+                    task_id: task_id.clone(),
+                    node_id: node_id.clone(),
+                    stream: LogStream::System,
+                    timestamp: Utc::now(),
+                    line: format!("task timed out after {seconds}s; terminating process group"),
+                    offset: 0,
+                }))
+                .await;
+            terminate_child(child, pid).await;
+            (None, false)
+        }
+    }
+}
+
+fn exit_result(exit: std::io::Result<std::process::ExitStatus>) -> (Option<i32>, bool) {
+    match exit {
+        Ok(status) => (status.code(), status.success()),
+        Err(_) => (None, false),
+    }
+}
+
+async fn terminate_child(child: &mut Child, pid: Option<u32>) {
+    #[cfg(unix)]
+    if let Some(pid) = pid {
+        let process_group = Pid::from_raw(pid as i32);
+        let _ = killpg(process_group, Signal::SIGTERM);
+        sleep(Duration::from_secs(5)).await;
+        if matches!(child.try_wait(), Ok(None)) {
+            let _ = killpg(process_group, Signal::SIGKILL);
+        }
+        let _ = child.wait().await;
+        return;
+    }
+
+    let _ = child.start_kill();
+    let _ = child.wait().await;
 }
 
 fn spawn_log_reader<R>(

@@ -3,15 +3,21 @@ use std::{
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
-
-static TERMINATE_REQUESTED: AtomicBool = AtomicBool::new(false);
+#[cfg(unix)]
+use signal_hook::{
+    consts::{SIGINT, SIGTERM},
+    flag as signal_flag,
+};
 
 #[derive(Parser, Debug)]
 #[command(about = "Environment-driven launcher for the multinode agent runtime")]
@@ -124,7 +130,7 @@ fn status(config: Config) -> Result<()> {
 }
 
 fn start_foreground(config: &Config, role: ResolvedRole) -> Result<()> {
-    install_signal_handlers()?;
+    let terminate_requested = install_signal_handlers()?;
     match role {
         ResolvedRole::Master => {
             reset_log(&config.runtime_dir.join("coordinator.log"))?;
@@ -139,7 +145,7 @@ fn start_foreground(config: &Config, role: ResolvedRole) -> Result<()> {
                 spawn_logged(worker_command(config), "worker", &worker_log_path(config))?;
             println!("started role=master mode=foreground");
             print_runtime_info(config, true);
-            wait_for_children(&mut coordinator, &mut worker)
+            wait_for_children(&mut coordinator, &mut worker, &terminate_requested)
         }
         ResolvedRole::Worker => {
             reset_log(&worker_log_path(config))?;
@@ -147,7 +153,7 @@ fn start_foreground(config: &Config, role: ResolvedRole) -> Result<()> {
             print_runtime_info(config, false);
             let mut worker =
                 spawn_logged(worker_command(config), "worker", &worker_log_path(config))?;
-            wait_for_child(&mut worker, "worker")
+            wait_for_child(&mut worker, "worker", &terminate_requested)
         }
     }
 }
@@ -301,9 +307,13 @@ fn spawn_logged(command: Vec<String>, label: &str, log_path: &Path) -> Result<Ch
         .with_context(|| format!("failed to start {label} with {program}"))
 }
 
-fn wait_for_children(first: &mut Child, second: &mut Child) -> Result<()> {
+fn wait_for_children(
+    first: &mut Child,
+    second: &mut Child,
+    terminate_requested: &AtomicBool,
+) -> Result<()> {
     loop {
-        if termination_requested() {
+        if termination_requested(terminate_requested) {
             terminate_child(first);
             terminate_child(second);
             bail!("received shutdown signal");
@@ -320,9 +330,9 @@ fn wait_for_children(first: &mut Child, second: &mut Child) -> Result<()> {
     }
 }
 
-fn wait_for_child(child: &mut Child, label: &str) -> Result<()> {
+fn wait_for_child(child: &mut Child, label: &str, terminate_requested: &AtomicBool) -> Result<()> {
     loop {
-        if termination_requested() {
+        if termination_requested(terminate_requested) {
             terminate_child(child);
             bail!("received shutdown signal");
         }
@@ -341,41 +351,23 @@ fn terminate_child(child: &mut Child) {
     let _ = child.wait();
 }
 
-fn termination_requested() -> bool {
-    TERMINATE_REQUESTED.load(Ordering::SeqCst)
+fn termination_requested(terminate_requested: &AtomicBool) -> bool {
+    terminate_requested.load(Ordering::SeqCst)
 }
 
 #[cfg(unix)]
-fn install_signal_handlers() -> Result<()> {
-    unsafe {
-        let mut action: libc::sigaction = std::mem::zeroed();
-        action.sa_sigaction = handle_signal as *const () as libc::sighandler_t;
-        action.sa_flags = 0;
-        libc::sigemptyset(&mut action.sa_mask);
-        install_signal_handler(libc::SIGINT, &action)?;
-        install_signal_handler(libc::SIGTERM, &action)?;
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-unsafe fn install_signal_handler(signal: libc::c_int, action: &libc::sigaction) -> Result<()> {
-    if libc::sigaction(signal, action, std::ptr::null_mut()) == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-            .with_context(|| format!("failed to install signal handler for {signal}"))
-    }
-}
-
-#[cfg(unix)]
-extern "C" fn handle_signal(_signal: libc::c_int) {
-    TERMINATE_REQUESTED.store(true, Ordering::SeqCst);
+fn install_signal_handlers() -> Result<Arc<AtomicBool>> {
+    let terminate_requested = Arc::new(AtomicBool::new(false));
+    signal_flag::register(SIGINT, Arc::clone(&terminate_requested))
+        .context("failed to install SIGINT handler")?;
+    signal_flag::register(SIGTERM, Arc::clone(&terminate_requested))
+        .context("failed to install SIGTERM handler")?;
+    Ok(terminate_requested)
 }
 
 #[cfg(not(unix))]
-fn install_signal_handlers() -> Result<()> {
-    Ok(())
+fn install_signal_handlers() -> Result<Arc<AtomicBool>> {
+    Ok(Arc::new(AtomicBool::new(false)))
 }
 
 fn shell_command(command: Vec<String>, log_path: &Path) -> String {

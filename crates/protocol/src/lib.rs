@@ -13,6 +13,9 @@ pub struct TaskId(pub String);
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct NodeId(pub String);
 
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub struct LeaseId(pub String);
+
 macro_rules! id_impl {
     ($ty:ty, $prefix:literal) => {
         #[allow(clippy::new_without_default)]
@@ -45,6 +48,7 @@ macro_rules! id_impl {
 id_impl!(JobId, "job");
 id_impl!(TaskId, "task");
 id_impl!(NodeId, "node");
+id_impl!(LeaseId, "lease");
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunSpec {
@@ -449,6 +453,12 @@ pub struct RunProcessRequest {
     pub argv: Vec<String>,
     pub cwd: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
+    #[serde(default)]
+    pub node_env: BTreeMap<NodeId, BTreeMap<String, String>>,
+    #[serde(default)]
+    pub lease_id: Option<LeaseId>,
+    #[serde(default)]
+    pub timeout: Option<DurationSpec>,
     pub wait: bool,
 }
 
@@ -466,6 +476,49 @@ pub struct TailJobRequest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KillJobRequest {
     pub job_id: JobId,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JobStatusRequest {
+    pub job_id: JobId,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CreateLeaseRequest {
+    pub nodes: Vec<NodeId>,
+    pub count: Option<usize>,
+    pub gpus_per_node: Option<u32>,
+    pub exclusive: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReleaseLeaseRequest {
+    pub lease_id: LeaseId,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DiagnoseJobRequest {
+    pub job_id: JobId,
+    pub lines: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LeaseSummary {
+    pub lease_id: LeaseId,
+    pub nodes: Vec<NodeId>,
+    pub gpus_per_node: Option<u32>,
+    pub exclusive: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JobDiagnosis {
+    pub job_id: JobId,
+    pub status: String,
+    pub summary: String,
+    pub hints: Vec<String>,
+    pub recent_errors: Vec<LogLine>,
+    pub tasks: Vec<TaskSummary>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -489,6 +542,11 @@ pub enum ClientRequest {
     ListJobs(ListJobsRequest),
     TailJob(TailJobRequest),
     KillJob(KillJobRequest),
+    JobStatus(JobStatusRequest),
+    CreateLease(CreateLeaseRequest),
+    ListLeases,
+    ReleaseLease(ReleaseLeaseRequest),
+    DiagnoseJob(DiagnoseJobRequest),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -496,7 +554,11 @@ pub enum ClientRequest {
 pub enum ClientResponse {
     Nodes(Vec<NodeSummary>),
     Jobs(Vec<JobSummary>),
+    Job(JobSummary),
     Logs(Vec<LogLine>),
+    Leases(Vec<LeaseSummary>),
+    LeaseCreated(LeaseSummary),
+    JobDiagnosis(JobDiagnosis),
     RunStarted(RunStarted),
     TaskStarted(TaskStarted),
     LogLine(LogLine),

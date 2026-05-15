@@ -11,5 +11,5 @@ agent-sandbox-linux.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
-libc.workspace = true
+nix.workspace = true
 tokio.workspace = true

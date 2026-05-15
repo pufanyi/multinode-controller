@@ -66,6 +66,29 @@ agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/
   run -- nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
 ```
 
+ML-oriented shortcuts are also available:
+
+```bash
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" inventory gpu
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" health torch
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" lease create --count 2 --gpus-per-node 1
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" ml torchrun --lease lease_xxx --gpus-per-node 1 -- python train.py
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" job diagnose job_xxx
+```
+
+Submit work in the background and return to it later:
+
+```bash
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" \
+  run --wait false --timeout-seconds 3600 -- python train.py
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" job status job_xxx
+agentctl --coordinator "ws://127.0.0.1:8765" --token-file "$HOME/.agent-runtime/client.token" job watch job_xxx --interval 5
+```
+
+`--wait false` does not pause the process. It only makes `agentctl` return after
+submission; workers keep running the task until it exits, is killed, or reaches
+its timeout.
+
 ---
 
 ## Agent skill
@@ -97,7 +120,14 @@ This initial version implements:
 - optional WebSocket handshake bearer-token authentication
 - `agentctl nodes`
 - `agentctl run --nodes node-a,node-b -- <argv...>`
-- `agentctl job list|tail|kill`
+- `agentctl job list|tail|status|watch|kill`
+- background execution with `agentctl run --wait false`
+- worker-enforced timeouts with `agentctl run --timeout-seconds <seconds>`
+- `agentctl inventory nodes|gpu|cuda|torch`
+- `agentctl health gpu|torch|nccl`
+- `agentctl ml torchrun`
+- `agentctl lease create|list|release`
+- `agentctl job diagnose`
 - `allow_all` policy
 - YAML policy loading with simple command allow/deny lists
 - `none` sandbox backend

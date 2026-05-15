@@ -9,4 +9,4 @@ rust-version.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 hostname.workspace = true
-libc.workspace = true
+signal-hook.workspace = true
